@@ -1,5 +1,5 @@
 fastqc:
- version: "fastqc/0.11.5%"
+ version: "fastqc/0.11.5"
 pigz:
  version: "pigz/2.3.3"
 cutadapt:
@@ -25,7 +25,7 @@ bcftools:
 java:
  version: "java/13.0.1"
 htseq:
- version: "htseq/0.6.1p1-deprecated"
+ version: "htseq/2.0.8"
 rseqc:
  version: "rseqc/3.0.1"
 rsem:
