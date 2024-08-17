@@ -1,36 +1,36 @@
 fastqc:
- version: "fastqc/0.11.9"
+ version: "fastqc/0.11.5%"
 pigz:
- version: "pigz/2.4"
+ version: "pigz/2.3.3"
 cutadapt:
- version: "cutadapt/1.18"
+ version: "cutadapt/1.2.1"
 fastq_screen:
- version: "fastq_screen/0.14.0"
+ version: "fastq_screen/0.9.5"
 bowtie:
- version: "bowtie/2-2.4.2"
+ version: "bowtie2/2.4.2"
 hisat:
- version: "hisat/2.2.1.0-ngs2.10.9"
+ version: "hisat/2.2.1"
 samtools:
  version: "samtools/1.9"
 sambamba:
- version: "sambamba/0.8.0"
+ version: "sambamba/1.0.1"
 star:
- version: "STAR/2.7.8a"
+ version: "star/2.7.9a"
 picard:
- version: "picard/2.9.2"
+ version: "picard/2.9.4"
 bbtools:
  version: "bbtools/38.87"
 bcftools:
  version: "bcftools/1.9"
 java:
- version: "java/12.0.1"
+ version: "java/13.0.1"
 htseq:
- version: "htseq/0.11.4"
+ version: "htseq/0.6.1p1-deprecated"
 rseqc:
- version: "rseqc/4.0.0"
+ version: "rseqc/3.0.1"
 rsem:
  version: "rsem/1.3.3"
 ucsc:
- version: "ucsc/411"
+ version: "ucsc/121917"
 qualimap:
  version: "qualimap/2.2.1"

@@ -70,8 +70,8 @@ function runcheck(){
   WORKDIR=$2
   echo "Working Dir: $WORKDIR"
   if [ ! -d $WORKDIR ];then err "Folder $WORKDIR does not exist!"; exit 1; fi
-  module load python/3.7
-  module load snakemake
+#  module load python/3.7.0
+#  module load snakemake
 }
 
 function dryrun() {
@@ -112,7 +112,7 @@ echo "Done Initializing $WORKDIR. You can now edit $WORKDIR/config.yaml and $WOR
 
 function runlocal() {
   runcheck "$@"
-  if [ "$SLURM_JOB_ID" == "" ];then err "runlocal can only be done on an interactive node"; exit 1; fi
+#  if [ "$SLURM_JOB_ID" == "" ];then err "runlocal can only be done on an interactive node"; exit 1; fi
   module load singularity
   run "local"
 }
@@ -167,7 +167,6 @@ function run () {
   --latency-wait 120 \
   --configfile $WORKDIR/config.yaml \
   --cores all \
-  --stats ${WORKDIR}/snakemake.stats \
   2>&1|tee ${WORKDIR}/snakemake.log
 
   if [ "$?" -eq "0" ];then
@@ -189,7 +188,7 @@ function run () {
 #SBATCH --time=96:00:00
 #SBATCH --cpus-per-task=2
 
-module load python/3.7
+module load python/3.7.0
 module load snakemake/5.24.1
 module load singularity
 
@@ -231,12 +230,12 @@ snakemake $1 -s $SNAKEFILE \
 --printshellcmds \
 --latency-wait 120 \
 --configfile ${WORKDIR}/config.yaml \
---cluster-config ${PIPELINE_HOME}/config/cluster.json \
---cluster "sbatch --gres {cluster.gres} --cpus-per-task {cluster.threads} -p {cluster.partition} -t {cluster.time} --mem {cluster.mem} --job-name {cluster.name} --output {cluster.output} --error {cluster.error}" \
+#--cluster-config ${PIPELINE_HOME}/config/cluster.json \
+#--cluster "sbatch --gres {cluster.gres} --cpus-per-task {cluster.threads} -p {cluster.partition} -t {cluster.time} --mem {cluster.mem} --job-name {cluster.name} --output {cluster.output} --error {cluster.error}" \
 -j 500 \
 --rerun-incomplete \
---keep-going \
---stats ${WORKDIR}/snakemake.stats
+--keep-going #\
+#--stats ${WORKDIR}/snakemake.stats
 
   fi
 
