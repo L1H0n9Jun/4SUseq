@@ -35,10 +35,10 @@ rule bbtools:
         outdir=join(WORKDIR,"qc","fastqscreen"),
         mem=getmemg("bbtools")
     threads: getthreads("fastq_screen")
-    envmodules: TOOLS["bbtools"]["version"],
+    #envmodules: TOOLS["bbtools"]["version"],
     shell:"""
 set -exuf -o pipefail
-bbtools bbmerge-auto \
+/home/kwang34/biotools/bbmap/bbmerge-auto.sh \
 in1={input.if1} \
 in2={input.if2} \
 ihist={output.hist} \
@@ -114,7 +114,7 @@ rule qualimap:
         outdir=join(WORKDIR,"qc","qualimap","{sample}"),
         mem=getmemG("qualimap")
     threads: getthreads("qualimap")
-    envmodules: TOOLS["qualimap"]["version"]
+    #envmodules: TOOLS["qualimap"]["version"]
     shell:"""
 set -exuf -o pipefail
 unset DISPLAY

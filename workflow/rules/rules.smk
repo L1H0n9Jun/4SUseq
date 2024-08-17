@@ -16,7 +16,7 @@ rule cutadapt:
 		workdir=WORKDIR,
 		adapters=join(RESOURCESDIR,"TruSeq_and_nextera_adapters.consolidated.fa")
 	envmodules: TOOLS["cutadapt"]["version"]
-	threads: 56
+	threads: 8
 	shell:"""
 cutadapt --pair-filter=any \
 --nextseq-trim=2 \
@@ -25,7 +25,7 @@ cutadapt --pair-filter=any \
 -q 10,10 -m 35:35 \
 -b file:{params.adapters} \
 -B file:{params.adapters} \
--j {threads} \
+-j 8 \
 -o {output.of1} -p {output.of2} \
 {input.R1} {input.R2}
 """
@@ -42,8 +42,8 @@ rule fastuniq:
 		workdir=WORKDIR,
 		outdir=FASTUNIQDIR,
 		fastuniq=join(RESOURCESDIR,"fastuniq")
-	envmodules: TOOLS["pigz"]["version"]
-	threads: 56
+	#envmodules: TOOLS["pigz"]["version"]
+	threads: 8
 	shell:"""
 zcat {input.if1} > /dev/shm/{params.sample}.R1.fastq
 zcat {input.if2} > /dev/shm/{params.sample}.R2.fastq
@@ -71,7 +71,7 @@ rule get_fastq_nreads:
 		outdir=FASTUNIQDIR,
 		bashscript=join(SCRIPTSDIR,"get_lanes.sh"),
 		scriptsdir=SCRIPTSDIR
-	threads: 56
+	threads: 8
 	shell:"""
 for f in {input.f1} {input.f2} {input.f3};do
 cd $f
@@ -91,7 +91,7 @@ rule fastq_screen:
 		workdir=WORKDIR,
 		outdir=join(WORKDIR,"qc","fastqscreen"),
 		conf=join(RESOURCESDIR,"fastq_screen.conf")
-	threads: 56
+	threads: 8
 	envmodules: TOOLS["fastq_screen"]["version"], TOOLS["bowtie"]["version"]
 	shell:"""
 fastq_screen --conf {params.conf} \
@@ -122,7 +122,7 @@ rule hisat_on_fastuniq:
 		filter_script=join(SCRIPTSDIR,"filter_bam.py"),
 		mapqfilter=config['mapqfilter'],
 		ninsertionfilter=config['ninsertionfilter']
-	threads: 56
+	threads: 8
 	envmodules: TOOLS["hisat"]["version"], TOOLS["samtools"]["version"], TOOLS["sambamba"]["version"],  TOOLS["picard"]["version"],  TOOLS["bbtools"]["version"]
 	shell:"""
 hisat2 \
@@ -164,7 +164,7 @@ rule call_mutations:
 		tab=join(RESOURCESDIR,config["genome"]+".genes.tab.gz"),
 		hdr=join(RESOURCESDIR,"hdr.txt"),
 		filter_script=join(SCRIPTSDIR,"filter_bam.py")
-	threads: 56
+	threads: 8
 	envmodules: TOOLS["bcftools"]["version"], TOOLS["samtools"]["version"]
 	shell:"""
 bcftools mpileup -f {params.hisatindex}/{params.genome}/{params.genome}.fa -a AD,ADF,ADR {input.bam} | \
@@ -192,7 +192,7 @@ rule hisat_on_cutadapt:
 		hisatindex=config["hisatindex"],
 		splicesites=join(RESOURCESDIR,config["genome"]+".splicesites.txt"),
 		filter_script=join(SCRIPTSDIR,"filter_bam.py")
-	threads: 56
+	threads: 8
 	envmodules: TOOLS["hisat"]["version"], TOOLS["samtools"]["version"], TOOLS["sambamba"]["version"],  TOOLS["picard"]["version"],  TOOLS["bbtools"]["version"]
 	shell:"""
 hisat2 \

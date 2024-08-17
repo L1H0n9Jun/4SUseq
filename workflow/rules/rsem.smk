@@ -9,6 +9,7 @@ rule create_rsem_index:
     envmodules: TOOLS['rsem']['version']
     threads: getthreads("create_rsem_index")
     shell:"""
+export PERL5LIB=/home/kwang34/miniconda3/envs/snakemake/lib/perl5/site_perl
 set -euf -o pipefail
 cd {params.rsemindexdir}
 rsem-prepare-reference -p {threads} --gtf {input.gtf} {input.reffa} ref
@@ -65,6 +66,7 @@ rule get_rsem_counts:
     threads: getthreads("get_rsem_counts")
     params:
         sample="{sample}",
+        workdir=WORKDIR,
         rsemdir=join(WORKDIR,"rsem")
     shell:"""
 set -ex -o pipefail
@@ -77,7 +79,7 @@ rsemindex=$(echo {input.bed12}|sed "s@.bed12@@g")
 
 rsem-calculate-expression --no-bam-output --calc-ci --seed 12345  \
         --bam --paired-end -p {threads}  {input.tbam} $rsemindex {params.sample} --time \
-        --temporary-folder /lscratch/$SLURM_JOBID --keep-intermediate-files --forward-prob=${{fp}} --estimate-rspd
+        --temporary-folder {params.workdir}/_4u_tmp --keep-intermediate-files --forward-prob=${{fp}} --estimate-rspd
 mv {params.sample}.genes.results {output.gcounts}
 mv {params.sample}.isoforms.results {output.tcounts}
 
@@ -96,6 +98,7 @@ rule get_rsem_counts_mutated:
     threads: getthreads("get_rsem_counts")
     params:
         sample="{sample}",
+        workdir=WORKDIR,
         rsemdir=join(WORKDIR,"rsem")
     shell:"""
 set -ex -o pipefail
@@ -108,7 +111,7 @@ rsemindex=$(echo {input.bed12}|sed "s@.bed12@@g")
 
 rsem-calculate-expression --no-bam-output --calc-ci --seed 12345  \
         --bam --paired-end -p {threads}  {input.mutatedtbam} $rsemindex {params.sample}_mutated --time \
-        --temporary-folder /lscratch/$SLURM_JOBID --keep-intermediate-files --forward-prob=${{fp}} --estimate-rspd
+        --temporary-folder {params.workdir}/_4u_tmp --keep-intermediate-files --forward-prob=${{fp}} --estimate-rspd
 mv {params.sample}_mutated.genes.results {output.mutatedgcounts}
 mv {params.sample}_mutated.isoforms.results {output.mutatedtcounts}
 
@@ -127,6 +130,7 @@ rule get_rsem_counts_unmutated:
     threads: getthreads("get_rsem_counts")
     params:
         sample="{sample}",
+        workdir=WORKDIR,
         rsemdir=join(WORKDIR,"rsem")
     shell:"""
 set -ex -o pipefail
@@ -139,8 +143,7 @@ rsemindex=$(echo {input.bed12}|sed "s@.bed12@@g")
 
 rsem-calculate-expression --no-bam-output --calc-ci --seed 12345  \
         --bam --paired-end -p {threads}  {input.unmutatedtbam} $rsemindex {params.sample}_unmutated --time \
-        --temporary-folder /lscratch/$SLURM_JOBID --keep-intermediate-files --forward-prob=${{fp}} --estimate-rspd
+        --temporary-folder {params.workdir}/_4u_tmp --keep-intermediate-files --forward-prob=${{fp}} --estimate-rspd
 mv {params.sample}_unmutated.genes.results {output.unmutatedgcounts}
 mv {params.sample}_unmutated.isoforms.results {output.unmutatedtcounts}
-
 """

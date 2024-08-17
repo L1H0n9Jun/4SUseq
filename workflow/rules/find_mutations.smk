@@ -11,18 +11,20 @@ rule get_fastuniq_readids:
         workdir=WORKDIR,
         outdir=FASTUNIQDIR,
         fastuniq=join(RESOURCESDIR,"fastuniq")
-    envmodules: TOOLS["pigz"]["version"]
+    # envmodules: TOOLS["pigz"]["version"]
     threads: getthreads("get_fastuniq_readids")
     shell:"""
 set -e -x -o pipefail
-zcat {input.if1} > /lscratch/${{SLURM_JOBID}}/{params.sample}.R1.fastq
-zcat {input.if2} > /lscratch/${{SLURM_JOBID}}/{params.sample}.R2.fastq
-echo "/lscratch/${{SLURM_JOBID}}/{params.sample}.R1.fastq" > /lscratch/${{SLURM_JOBID}}/{params.sample}.list
-echo "/lscratch/${{SLURM_JOBID}}/{params.sample}.R2.fastq" >> /lscratch/${{SLURM_JOBID}}/{params.sample}.list
-{params.fastuniq} -i /lscratch/${{SLURM_JOBID}}/{params.sample}.list -t q -o /lscratch/${{SLURM_JOBID}}/{params.sample}.R1.trim.fastuniq.fastq -p /lscratch/${{SLURM_JOBID}}/{params.sample}.R2.trim.fastuniq.fastq -c 0
-awk '{{if (! ((FNR + 3) % 4)) {{ print(substr($1,2))}}}}' /lscratch/${{SLURM_JOBID}}/{params.sample}.R1.trim.fastuniq.fastq > {output.readids}
-pigz -p4 /lscratch/${{SLURM_JOBID}}/{params.sample}.R1.trim.fastuniq.fastq && mv /lscratch/${{SLURM_JOBID}}/{params.sample}.R1.trim.fastuniq.fastq.gz {output.of1}
-pigz -p4 /lscratch/${{SLURM_JOBID}}/{params.sample}.R2.trim.fastuniq.fastq && mv /lscratch/${{SLURM_JOBID}}/{params.sample}.R2.trim.fastuniq.fastq.gz {output.of2}
+tmpdir={params.workdir}/_4u_tmp
+mkdir -p ${{tmpdir}}
+zcat {input.if1} > {params.workdir}/_4u_tmp/{params.sample}.R1.fastq
+zcat {input.if2} > {params.workdir}/_4u_tmp/{params.sample}.R2.fastq
+echo "{params.workdir}/_4u_tmp/{params.sample}.R1.fastq" > {params.workdir}/_4u_tmp/{params.sample}.list
+echo "{params.workdir}/_4u_tmp/{params.sample}.R2.fastq" >> {params.workdir}/_4u_tmp/{params.sample}.list
+{params.fastuniq} -i {params.workdir}/_4u_tmp/{params.sample}.list -t q -o {params.workdir}/_4u_tmp/{params.sample}.R1.trim.fastuniq.fastq -p {params.workdir}/_4u_tmp/{params.sample}.R2.trim.fastuniq.fastq -c 0
+awk '{{if (! ((FNR + 3) % 4)) {{ print(substr($1,2))}}}}' {params.workdir}/_4u_tmp/{params.sample}.R1.trim.fastuniq.fastq > {output.readids}
+pigz -p4 {params.workdir}/_4u_tmp/{params.sample}.R1.trim.fastuniq.fastq && mv {params.workdir}/_4u_tmp/{params.sample}.R1.trim.fastuniq.fastq.gz {output.of1}
+pigz -p4 {params.workdir}/_4u_tmp/{params.sample}.R2.trim.fastuniq.fastq && mv {params.workdir}/_4u_tmp/{params.sample}.R2.trim.fastuniq.fastq.gz {output.of2}
 
 echo "DONE!"
 """
@@ -86,7 +88,8 @@ rule star:
     envmodules: TOOLS["star"]["version"], TOOLS["samtools"]["version"],  TOOLS["picard"]["version"], 
     shell:"""
 set -e -x -o pipefail
-tmpdir=/lscratch/$SLURM_JOB_ID
+tmpdir={params.workdir}/_4u_tmp
+mkdir -p ${{tmpdir}}
 cd {params.outdir}
 # Align with STAR and remove secondary/supplementary alignments
 readlength=$(
@@ -121,10 +124,10 @@ rm -f ${{tmpdir}}/{params.sample}.post_secondary_supplementary_filter.tmp.bam
 samtools index -@{threads} ${{tmpdir}}/{params.sample}.post_secondary_supplementary_filter.bam
 
 # Apply the "number of insertions in read" filter
-python {params.filter_script} -i ${{tmpdir}}/{params.sample}.post_secondary_supplementary_filter.bam -o ${{tmpdir}}/{params.sample}.post_insertion_filter.bam -q 0 -n {params.ninsertionfilter}
+/home/kwang34/miniconda3/envs/snakemake/bin/python {params.filter_script} -i ${{tmpdir}}/{params.sample}.post_secondary_supplementary_filter.bam -o ${{tmpdir}}/{params.sample}.post_insertion_filter.bam -q 0 -n {params.ninsertionfilter}
 
 # Sort, FixMateInfo, collect stats
-java -Xmx{params.mem}g -jar $PICARDJARPATH/picard.jar FixMateInformation \
+java -Xmx{params.mem}g -jar /home/kwang34/biotools/picard.jar FixMateInformation \
  I=${{tmpdir}}/{params.sample}.post_insertion_filter.bam \
  O=${{tmpdir}}/{params.sample}.postfixmate.bam \
  ASSUME_SORTED=false \
@@ -133,7 +136,7 @@ java -Xmx{params.mem}g -jar $PICARDJARPATH/picard.jar FixMateInformation \
 samtools flagstat -@{threads} ${{tmpdir}}/{params.sample}.postfixmate.bam > {output.postinsertionfilterbamflagstat}
 
 # Apply the MAPQ filter and remove "widowed" reads
-python {params.filter_script} -i ${{tmpdir}}/{params.sample}.postfixmate.bam -o {output.bam} -q {params.mapqfilter} -n 1000
+/home/kwang34/miniconda3/envs/snakemake/bin/python {params.filter_script} -i ${{tmpdir}}/{params.sample}.postfixmate.bam -o {output.bam} -q {params.mapqfilter} -n 1000
 
 # Index and collect stats
 samtools index -@{threads} {output.bam}
@@ -229,16 +232,16 @@ sambamba sort --memory-limit={params.mem}G --tmpdir=/dev/shm --nthreads={threads
 sambamba flagstat --nthreads={threads} /dev/shm/{params.sample}.post_secondary_supplementary_filter.bam > {output.postsecondarysupplementaryfilterbamflagstat}
 
 # Apply the "number of insertions in read" filter
-python {params.filter_script} -i /dev/shm/{params.sample}.post_secondary_supplementary_filter.bam -o /dev/shm/{params.sample}.post_insertion_filter.tmp.bam -q 0 -n {params.ninsertionfilter}
+/home/kwang34/miniconda3/envs/snakemake/bin/python {params.filter_script} -i /dev/shm/{params.sample}.post_secondary_supplementary_filter.bam -o /dev/shm/{params.sample}.post_insertion_filter.tmp.bam -q 0 -n {params.ninsertionfilter}
 
 # Sort, FixMateInfo, collect stats
 sambamba sort -n --memory-limit={params.mem}G --tmpdir=/dev/shm --nthreads={threads} --out=/dev/shm/{params.sample}.post_insertion_filter.bam /dev/shm/{params.sample}.post_insertion_filter.tmp.bam && rm -f /dev/shm/{params.sample}.post_insertion_filter.tmp.bam
-java -Xmx{params.mem}g -jar $PICARDJARPATH/picard.jar FixMateInformation I=/dev/shm/{params.sample}.post_insertion_filter.bam O=/dev/stdout ASSUME_SORTED=true QUIET=true \
+java -Xmx{params.mem}g -jar /home/kwang34/biotools/picard.jar FixMateInformation I=/dev/shm/{params.sample}.post_insertion_filter.bam O=/dev/stdout ASSUME_SORTED=true QUIET=true \
  | sambamba sort --memory-limit={params.mem}G --tmpdir=/dev/shm --nthreads={threads} --out=/dev/shm/{params.sample}.postsambambasort.bam /dev/stdin
 sambamba flagstat --nthreads={threads} /dev/shm/{params.sample}.postsambambasort.bam > {output.postinsertionfilterbamflagstat}
 
 # Apply the MAPQ filter and remove "widowed" reads
-python {params.filter_script} -i /dev/shm/{params.sample}.postsambambasort.bam -o {output.bam} -q {params.mapqfilter} -n 1000
+/home/kwang34/miniconda3/envs/snakemake/bin/python {params.filter_script} -i /dev/shm/{params.sample}.postsambambasort.bam -o {output.bam} -q {params.mapqfilter} -n 1000
 
 # Index and collect stats
 sambamba index --nthreads={threads} {output.bam}
@@ -301,12 +304,12 @@ rule create_toSNPcalling_BAM:
     threads: getthreads("create_toSNPcalling_BAM")
     shell:"""
 set -e -x -o pipefail
-TMPDIR="/lscratch/$SLURM_JOBID"
-python {params.script} -i {input.plusbam} -o ${{TMPDIR}}/{params.sample}.plus.bam --readids {input.readids}
+TMPDIR="{params.workdir}/_4u_tmp"
+/home/kwang34/miniconda3/envs/snakemake/bin/python {params.script} -i {input.plusbam} -o ${{TMPDIR}}/{params.sample}.plus.bam --readids {input.readids}
 sambamba sort --memory-limit={params.mem}G --tmpdir=${{TMPDIR}} --nthreads={threads} --out={output.plustoSNPcallingbam} ${{TMPDIR}}/{params.sample}.plus.bam && rm -f ${{TMPDIR}}/{params.sample}.plus.bam
 sambamba flagstat --nthreads={threads} {output.plustoSNPcallingbam} > {output.plustoSNPcallingbamflagstat}
 sambamba index --nthreads={threads} {output.plustoSNPcallingbam}
-python {params.script} -i {input.minusbam} -o ${{TMPDIR}}/{params.sample}.minus.bam --readids {input.readids}
+/home/kwang34/miniconda3/envs/snakemake/bin/python {params.script} -i {input.minusbam} -o ${{TMPDIR}}/{params.sample}.minus.bam --readids {input.readids}
 sambamba sort --memory-limit={params.mem}G --tmpdir=${{TMPDIR}} --nthreads={threads} --out={output.minustoSNPcallingbam} ${{TMPDIR}}/{params.sample}.minus.bam && rm -f ${{TMPDIR}}/{params.sample}.minus.bam
 sambamba flagstat --nthreads={threads} {output.minustoSNPcallingbam} > {output.minustoSNPcallingbamflagstat}
 sambamba index --nthreads={threads} {output.minustoSNPcallingbam}
@@ -337,7 +340,7 @@ rule call_mutations:
 set -e -x -o pipefail
 # call mutations with minimum 3 read-support
 # plus strand
-TMPDIR="/lscratch/$SLURM_JOBID"
+TMPDIR="{params.workdir}/_4u_tmp"
 bcftools mpileup -f {params.hisatindex}.fa -a AD,ADF,ADR {input.plusbam} | \
 bcftools view -i '(REF=="T" & ALT="C")' --threads {threads} - > ${{TMPDIR}}/{params.sample}.TtoC.bcf
 bcftools sort -T ${{TMPDIR}} ${{TMPDIR}}/{params.sample}.TtoC.bcf | bgzip > {output.plusvcf}
@@ -379,7 +382,7 @@ rule split_bam_by_mutation:
     envmodules: TOOLS["java"]["version"], TOOLS["sambamba"]["version"], TOOLS["samtools"]["version"]
     shell:"""
 set -e -x -o pipefail
-TMPDIR="/lscratch/$SLURM_JOBID"
+TMPDIR="{params.workdir}/_4u_tmp"
 # using sam2tsv from jvarkit --> https://lindenb.github.io/jvarkit/Sam2Tsv.html
 
 plusvcf=$(basename {input.plusvcf})
@@ -388,7 +391,7 @@ java -Xmx{params.mem}g -jar {params.sam2tsvjar} \
  --reference {params.hisatindex}.fa \
  --skip-N \
  {input.plusbam} | \
-python {params.tsv2readidspy} ${{TMPDIR}}/${{plusvcf%.*}} "T" "C" | \
+/home/kwang34/miniconda3/envs/snakemake/bin/python {params.tsv2readidspy} ${{TMPDIR}}/${{plusvcf%.*}} "T" "C" | \
 sort | uniq > ${{TMPDIR}}/{params.sample}.plus.readids
 
 minusvcf=$(basename {input.minusvcf})
@@ -397,13 +400,13 @@ java -Xmx{params.mem}g -jar {params.sam2tsvjar} \
  --reference {params.hisatindex}.fa \
  --skip-N \
  {input.minusbam} | \
-python {params.tsv2readidspy} ${{TMPDIR}}/${{minusvcf%.*}} "A" "G" | \
+/home/kwang34/miniconda3/envs/snakemake/bin/python {params.tsv2readidspy} ${{TMPDIR}}/${{minusvcf%.*}} "A" "G" | \
 sort | uniq > ${{TMPDIR}}/{params.sample}.minus.readids
 
 cat ${{TMPDIR}}/{params.sample}.plus.readids ${{TMPDIR}}/{params.sample}.minus.readids > {output.mutatedreadids}
 
-python {params.filterbyreadidspy} -i {input.plusbam} -o ${{TMPDIR}}/{params.sample}.mutated.plus.bam --readids ${{TMPDIR}}/{params.sample}.plus.readids -o2 ${{TMPDIR}}/{params.sample}.unmutated.plus.bam
-python {params.filterbyreadidspy} -i {input.minusbam} -o ${{TMPDIR}}/{params.sample}.mutated.minus.bam --readids ${{TMPDIR}}/{params.sample}.minus.readids -o2 ${{TMPDIR}}/{params.sample}.unmutated.minus.bam
+/home/kwang34/miniconda3/envs/snakemake/bin/python {params.filterbyreadidspy} -i {input.plusbam} -o ${{TMPDIR}}/{params.sample}.mutated.plus.bam --readids ${{TMPDIR}}/{params.sample}.plus.readids -o2 ${{TMPDIR}}/{params.sample}.unmutated.plus.bam
+/home/kwang34/miniconda3/envs/snakemake/bin/python {params.filterbyreadidspy} -i {input.minusbam} -o ${{TMPDIR}}/{params.sample}.mutated.minus.bam --readids ${{TMPDIR}}/{params.sample}.minus.readids -o2 ${{TMPDIR}}/{params.sample}.unmutated.minus.bam
 
 samtools merge -c -f -p -@ {threads} ${{TMPDIR}}/{params.sample}.mutated.bam ${{TMPDIR}}/{params.sample}.mutated.plus.bam ${{TMPDIR}}/{params.sample}.mutated.minus.bam && rm -f ${{TMPDIR}}/{params.sample}.mutated.plus.bam ${{TMPDIR}}/{params.sample}.mutated.minus.bam
 sambamba sort --memory-limit={params.mem}G --tmpdir=${{TMPDIR}} --nthreads={threads} --out={output.mutatedbam} ${{TMPDIR}}/{params.sample}.mutated.bam && rm -f ${{TMPDIR}}/{params.sample}.mutated.bam
@@ -432,11 +435,11 @@ rule split_tbam_by_mutation:
     envmodules: TOOLS["java"]["version"], TOOLS["sambamba"]["version"], TOOLS["samtools"]["version"], TOOLS["rsem"]["version"]
     shell:"""
 set -euf -o pipefail
-TMPDIR="/lscratch/$SLURM_JOBID"
+TMPDIR="{params.workdir}/_4u_tmp"
 mutatedbn=$(basename {output.mutatedtbam})
 unmutatedbn=$(basename {output.unmutatedtbam})
 sambamba sort --memory-limit={params.mem}G --tmpdir=${{TMPDIR}} --nthreads={threads} --out=${{TMPDIR}}/{params.sample}.sortedtbam.bam {input.tbam}
-python {params.filterbyreadidspy} -i ${{TMPDIR}}/{params.sample}.sortedtbam.bam -o ${{TMPDIR}}/${{mutatedbn}} --readids {input.mutatedreadids} -o2 ${{TMPDIR}}/${{unmutatedbn}}
+/home/kwang34/miniconda3/envs/snakemake/bin/python {params.filterbyreadidspy} -i ${{TMPDIR}}/{params.sample}.sortedtbam.bam -o ${{TMPDIR}}/${{mutatedbn}} --readids {input.mutatedreadids} -o2 ${{TMPDIR}}/${{unmutatedbn}}
 convert-sam-for-rsem -p {threads} --memory-per-thread 16G ${{TMPDIR}}/${{mutatedbn}} ${{TMPDIR}}/${{mutatedbn}}.converted
 convert-sam-for-rsem -p {threads} --memory-per-thread 16G ${{TMPDIR}}/${{unmutatedbn}} ${{TMPDIR}}/${{unmutatedbn}}.converted
 mv ${{TMPDIR}}/${{mutatedbn}}.converted.bam {output.mutatedtbam}
@@ -449,10 +452,13 @@ rule gtf2bed12:
         gtf=GTF
     output:
         bed12=join(WORKDIR,GENOME+".bed12")
+    params:
+        workdir=WORKDIR
     envmodules: TOOLS["ucsc"]["version"]
     shell:"""
 set -e -x -o pipefail
-TMPDIR="/lscratch/$SLURM_JOBID"
+TMPDIR="{params.workdir}/_4u_tmp"
+mkdir -p ${{TMPDIR}}
 bn=$(basename {input.gtf})
 gtfToGenePred {input.gtf} ${{TMPDIR}}/${{bn%.*}}.genepred
 genePredToBed ${{TMPDIR}}/${{bn%.*}}.genepred {output.bed12}
@@ -510,17 +516,17 @@ rule get_split_reads:
     threads: getthreads("get_split_reads")
     shell:"""
 set -e -x -o pipefail
-TMPDIR="/lscratch/$SLURM_JOBID"
+TMPDIR="{params.workdir}/_4u_tmp"
 samtools view {input.bam}|cut -f1|sort|uniq > ${{TMPDIR}}/{params.sample}.{params.mutated}.readids
 R1fastq=$(basename {output.R1})
 R1fastq="${{TMPDIR}}/${{R1fastq%.*}}"
 R2fastq=$(basename {output.R2})
 R2fastq="${{TMPDIR}}/${{R2fastq%.*}}"
-python {params.pyscript} \
+/home/kwang34/miniconda3/envs/snakemake/bin/python {params.pyscript} \
     --infq {input.R1} \
     --outfq $R1fastq \
     --readids ${{TMPDIR}}/{params.sample}.{params.mutated}.readids
-python {params.pyscript} \
+/home/kwang34/miniconda3/envs/snakemake/bin/python {params.pyscript} \
     --infq {input.R2} \
     --outfq $R2fastq \
     --readids ${{TMPDIR}}/{params.sample}.{params.mutated}.readids

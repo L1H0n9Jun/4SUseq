@@ -16,8 +16,8 @@ rule cutadapt:
 	params:
 		sample="{sample}",
 		adapters=join(RESOURCESDIR,"TruSeq_and_nextera_adapters.consolidated.fa")
-	envmodules: TOOLS["cutadapt"]["version"]
-	threads: 56
+	#envmodules: TOOLS["cutadapt"]["version"]
+	threads: 8
 	shell:"""
 cutadapt --pair-filter=any \
 --nextseq-trim=2 \
